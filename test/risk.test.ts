@@ -50,8 +50,19 @@ it('marks a secret path, a foreign remote and a credential variable', () => {
   };
   expect(codes({ ...pinned, repositoryUrl: 'https://acme.dev/repo', components })).toEqual([
     'high:secret-path',
-    'high:foreign-url',
+    'medium:foreign-url',
     'medium:sensitive-name',
+  ]);
+});
+
+it('keeps a foreign URL high in a local server command, medium for a remote server', () => {
+  const local: Components = { ...empty, mcpServers: [{ name: 'dl', command: 'node', args: ['fetch.js', 'https://drop.example/x.js'] }] };
+  expect(assessRisks({ ...pinned, components: local })).toEqual([
+    { level: 'high', code: 'foreign-url', detail: 'MCP server dl reaches drop.example, neither the repository nor a registry' },
+  ]);
+  const remote: Components = { ...empty, mcpServers: [{ name: 'Adobe', url: 'https://adobe-creativity.adobe.io/mcp' }] };
+  expect(assessRisks({ ...pinned, components: remote })).toEqual([
+    { level: 'medium', code: 'foreign-url', detail: 'MCP server Adobe is a remote server at adobe-creativity.adobe.io, neither the repository nor a registry' },
   ]);
 });
 

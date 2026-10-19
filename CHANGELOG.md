@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **A remote MCP server on an unknown host is a medium risk, not a high one.** It runs nothing on the machine, so it no longer blocks the install: official plugins such as Adobe's install again. A URL to an unknown host inside a hook or a local server command stays high.
+
 ## 0.1.0 — 2026-10-19
 
 First release. Browse public agent plugins and install them into the agents that can read them.

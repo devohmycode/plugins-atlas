@@ -46,10 +46,10 @@ const SECRET_PATH = /(?:~|\$HOME|\$\{HOME\}|%USERPROFILE%)[\\/]\.(?:ssh|aws)(?![
 
 /**
  * Reads hooks and MCP servers as text. Nothing is executed.
- * High: a download piped into a shell, `npx -y` or `uvx` without a version, a secret path,
- * or a URL whose host is neither the repository nor a known registry.
- * Medium: every command hook (it runs on its event without asking), a source pinned by neither
- * `ref` nor `sha`, a variable name that carries a credential word.
+ * High: a download piped into a shell, `npx -y` or `uvx` without a version, a secret path, or a URL in a hook
+ * or local server command whose host is neither the repository nor a known registry.
+ * Medium: every command hook (it runs on its event without asking), a remote MCP server on such a host,
+ * a source pinned by neither `ref` nor `sha`, a variable name that carries a credential word.
  * Info: a plugin made only of skills, commands and agents.
  */
 export function assessRisks(input: RiskInput): Risk[] {
@@ -75,7 +75,10 @@ export function assessRisks(input: RiskInput): Risk[] {
   }
   for (const server of components.mcpServers) {
     const where = `MCP server ${server.name}`;
-    scan(where, [server.command, ...(server.args ?? []), server.url, ...Object.values(server.env ?? {})].filter(Boolean).join(' '));
+    scan(where, [server.command, ...(server.args ?? []), ...Object.values(server.env ?? {})].filter(Boolean).join(' '));
+    // A remote server runs nothing here: an unknown host is worth reading, not a block. A URL in a command stays high.
+    const remote = hostOf(server.url);
+    if (remote && !allowed.has(remote)) add('medium', 'foreign-url', `${where} is a remote server at ${remote}, neither the repository nor a registry`);
     for (const name of Object.keys(server.env ?? {})) {
       const hit = SENSITIVE_NAME.exec(name);
       if (hit) add('medium', 'sensitive-name', `${where} variable ${name} contains ${hit[0].toUpperCase()}`);

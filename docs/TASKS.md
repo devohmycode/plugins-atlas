@@ -136,7 +136,7 @@ Hors de cette liste : niveau 3 (extensions Gemini CLI et Antigravity, plugins JS
 
 - [x] **T23** — Risques
   - Dépend de : T7, T14
-  - Fait quand : chaque hook et chaque serveur MCP est examiné. Haut : une commande qui télécharge et exécute (`curl|sh`, `npx -y` ou `uvx` sans version), qui lit un chemin de secret (`~/.ssh`, `~/.aws`), ou une URL distante dont l’hôte n’est ni celui du dépôt ni un registre connu. Moyen : tout hook qui lance une commande, une source de plugin ou de marketplace sans `ref` ni `sha`, une variable dont le nom contient KEY, TOKEN, SECRET ou PASSWORD. Info : un plugin fait seulement de skills, commandes et sous-agents. Les tests couvrent un cas de chaque niveau.
+  - Fait quand : chaque hook et chaque serveur MCP est examiné. Haut : une commande qui télécharge et exécute (`curl|sh`, `npx -y` ou `uvx` sans version), qui lit un chemin de secret (`~/.ssh`, `~/.aws`), ou une URL, dans la commande d’un hook ou d’un serveur local, dont l’hôte n’est ni celui du dépôt ni un registre connu. Moyen : tout hook qui lance une commande, un serveur MCP distant sur un tel hôte, une source de plugin ou de marketplace sans `ref` ni `sha`, une variable dont le nom contient KEY, TOKEN, SECRET ou PASSWORD. Info : un plugin fait seulement de skills, commandes et sous-agents. Les tests couvrent un cas de chaque niveau.
 
 - [x] **T24** — Audit
   - Dépend de : T23
