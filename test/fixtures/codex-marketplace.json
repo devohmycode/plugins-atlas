@@ -1,0 +1,51 @@
+{
+  "name": "openai-curated",
+  "interface": {
+    "displayName": "Codex official"
+  },
+  "plugins": [
+    {
+      "name": "linear",
+      "source": {
+        "source": "local",
+        "path": "./plugins/linear"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "crowdstrike-falcon-foundry",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/CrowdStrike/foundry-skills.git"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools",
+      "interface": {
+        "displayName": "CrowdStrike Falcon Foundry"
+      }
+    },
+    {
+      "name": "qodo",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/qodo-ai/qodo-skills.git",
+        "path": "codex-packages/qodo"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools",
+      "interface": {
+        "displayName": "Qodo"
+      }
+    }
+  ]
+}

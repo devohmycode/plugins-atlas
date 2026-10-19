@@ -1,0 +1,61 @@
+{
+  "name": "plugins-atlas",
+  "version": "0.1.0",
+  "description": "Browse public agent plugins and install them into compatible agents.",
+  "type": "module",
+  "bin": {
+    "plugins-atlas": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "data",
+    "skills"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "crawl": "tsx src/crawl.ts",
+    "demo": "tsx scripts/demo.ts"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^14.0.3",
+    "ink": "^6.8.0",
+    "react": "^19.3.1",
+    "smol-toml": "^1.9.1",
+    "string-width": "^8.3.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "ink-testing-library": "^4.0.0",
+    "tsup": "^8.5.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devohmycode/plugins-atlas.git"
+  },
+  "homepage": "https://github.com/devohmycode/plugins-atlas#readme",
+  "bugs": {
+    "url": "https://github.com/devohmycode/plugins-atlas/issues"
+  },
+  "keywords": [
+    "claude-code",
+    "plugins",
+    "agent-plugins",
+    "marketplace",
+    "copilot-cli",
+    "codex",
+    "cursor",
+    "mcp",
+    "cli"
+  ]
+}
