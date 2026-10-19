@@ -1,6 +1,6 @@
 # plugins-atlas
 
-Browse a catalog of public agent plugins and install them into the agents that can read them. A plugin is a declarative bundle (skills, commands, subagents, hooks, MCP servers) published in a marketplace. This is the plugins counterpart of [skills-atlas](https://github.com/devohmycode/skills-atlas) and mcp-atlas.
+Browse a catalog of public agent plugins and install them into the agents that can read them. A plugin is a declarative bundle (skills, commands, subagents, hooks, MCP servers) published in a marketplace. This is the plugins counterpart of [skills-atlas](https://github.com/devohmycode/skills-atlas) and [mcp-atlas](https://github.com/devohmycode/mcp-atlas).
 
 ## Install
 
@@ -92,6 +92,13 @@ Each plugin's files are read one by one from GitHub to list its components; noth
 ## Audit
 
 A high risk blocks install unless `--no-audit` is set, or `audit: false` in `~/.config/plugins-atlas/config.json`. High: a hook or MCP server that pipes a download into a shell (`curl | sh`), runs `npx -y` or `uvx` without a version, reads `~/.ssh` or `~/.aws`, or names in its command a host that is neither the repository nor a known registry. Medium: every command hook, a remote MCP server on such a host, a source pinned by neither `ref` nor `sha`, a credential-like variable name. A plugin whose files could not be read is unaudited, not failed, and is not installed.
+
+## Related projects
+
+The same tree, flags and review for the other kinds of agent extensions:
+
+- [skills-atlas](https://github.com/devohmycode/skills-atlas): Agent Skills (`SKILL.md`), installed through `npx skills add`.
+- [mcp-atlas](https://github.com/devohmycode/mcp-atlas): MCP servers, written into the config of Claude Code, Claude Desktop, Cursor, Codex and Grok.
 
 ## License
 
