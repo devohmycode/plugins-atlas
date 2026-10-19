@@ -1,10 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 — 2026-10-19
 
 - **The terminal wizard of mcp-atlas and skills-atlas.** `plugins-atlas` alone opens it: tree, scope, agents, review, then the tree again with the run's summary. Same logo (PLUGINS ATLAS, sky blue to pink), palette, step header, clickable key hints and mouse. Keys: `space`, `/`, `a`, `s`, `o`, `p`, `g`, `u`/`U`, `enter`, `q`. Installed plugins come first, ticked: unticking one uninstalls it, `u` updates it. The review audits what it installs: a high-risk plugin is left out unless kept with `space`. Changes are applied once the wizard has left the screen, so agent messages print below it.
 - **Options of mcp-atlas `browse`:** `-t, --theme <ids...>`, `-q, --search`, `--official`, `-s, --sort`, `-a` (with `*`), `-g`/`-p`, `-y`, `--dry-run`, `--no-audit`, `--no-mouse`. What they leave open is asked. In a terminal, `install <ids>` without `-y` opens the wizard on those plugins, the tree skipped. `list -q` is now `--search` (`--query` still works) and takes `-s`. The tree no longer filters by agent: the review says which chosen agents read each plugin.
 - **A remote MCP server on an unknown host is a medium risk, not a high one.** It runs nothing on the machine, so it no longer blocks the install: official plugins such as Adobe's install again. A URL to an unknown host inside a hook or a local server command stays high.
+
+Validation: 190 tests and TypeScript checks.
 
 ## 0.1.0 — 2026-10-19
 

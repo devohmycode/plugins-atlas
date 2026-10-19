@@ -1,6 +1,6 @@
 {
   "name": "plugins-atlas",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Browse public agent plugins and install them into compatible agents.",
   "type": "module",
   "bin": {
