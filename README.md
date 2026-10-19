@@ -97,7 +97,7 @@ Each plugin's files are read one by one from GitHub to list its components; noth
 
 ## Audit
 
-A high risk blocks install unless `--no-audit` is set, or `audit: false` in `~/.config/plugins-atlas/config.json`. High: a hook or MCP server that pipes a download into a shell (`curl | sh`), runs `npx -y` or `uvx` without a version, reads `~/.ssh` or `~/.aws`, or names in its command a host that is neither the repository nor a known registry. Medium: every command hook, a remote MCP server on such a host, a source pinned by neither `ref` nor `sha`, a credential-like variable name. A plugin whose files could not be read is unaudited, not failed, and is not installed.
+A high risk blocks install unless `--no-audit` is set, or `audit: false` in `~/.config/plugins-atlas/config.json`. High: a hook or MCP server that pipes a download into a shell (`curl | sh`), runs `npx -y` or `uvx` without an exact version (a dist-tag such as `@latest`, `*` or a range such as `@^1` or `==1.*` pins nothing), reads `~/.ssh` or `~/.aws`, or names in its command a host that is neither the repository nor a known registry. Medium: every command hook, a remote MCP server on such a host, a source pinned by neither `ref` nor `sha`, a credential-like variable name. A plugin whose files could not be read is unaudited, not failed, and is not installed.
 
 ## Related projects
 

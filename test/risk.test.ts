@@ -36,6 +36,21 @@ it('marks npx -y and uvx without a version as high, and lets a pinned one pass',
   expect(codes(server(['uvx', 'mcp-server-git']))).toEqual(['high:unpinned-package']);
   expect(codes(server(['npx', '-y', '@scope/db-mcp@1.2.0']))).toEqual([]);
   expect(codes(server(['uvx', 'mcp-server-git==0.6.2']))).toEqual([]);
+  expect(codes(server(['npx', '-y', 'db-mcp@1.2.3']))).toEqual([]);
+  expect(codes(server(['uvx', 'mcp-server-git@0.6.2']))).toEqual([]);
+});
+
+it('treats a dist-tag, a wildcard or a range as no version', () => {
+  const server = (args: string[]) => ({ ...pinned, components: { ...empty, mcpServers: [{ name: 's', command: args[0], args: args.slice(1) }] } });
+  for (const pkg of ['db-mcp@latest', '@scope/db-mcp@next', 'db-mcp@*', 'db-mcp@^1', 'db-mcp@~1.2', 'db-mcp@>=1', 'db-mcp@<2', 'db-mcp@1.x']) {
+    expect(codes(server(['npx', '-y', pkg]))).toEqual(['high:unpinned-package']);
+  }
+  for (const pkg of ['awslabs.aws-serverless-mcp-server@latest', 'mcp-server-git==0.*', 'mcp-server-git@^1']) {
+    expect(codes(server(['uvx', pkg, '--allow-write']))).toEqual(['high:unpinned-package']);
+  }
+  expect(assessRisks(server(['uvx', 'awslabs.aws-serverless-mcp-server@latest']))[0]?.detail).toBe(
+    'MCP server s runs uvx awslabs.aws-serverless-mcp-server@latest without a version',
+  );
 });
 
 it('marks a secret path, a foreign remote and a credential variable', () => {

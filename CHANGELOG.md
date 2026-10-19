@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **A dist-tag, a wildcard or a range is not a version.** `npx -y pkg@latest`, `uvx pkg@latest`, `@next`, `@*`, `@^1`, `@1.x` or `==1.*` now count as unpinned (high), like a bare package name: they used to pass because of the `@` or `==`. The official plugin aws-serverless runs `uvx awslabs.aws-serverless-mcp-server@latest`. An exact version (`@1.2.3`, `==0.6.2`) still passes.
+
 ## 0.2.0 — 2026-10-19
 
 - **The terminal wizard of mcp-atlas and skills-atlas.** `plugins-atlas` alone opens it: tree, scope, agents, review, then the tree again with the run's summary. Same logo (PLUGINS ATLAS, sky blue to pink), palette, step header, clickable key hints and mouse. Keys: `space`, `/`, `a`, `s`, `o`, `p`, `g`, `u`/`U`, `enter`, `q`. Installed plugins come first, ticked: unticking one uninstalls it, `u` updates it. The review audits what it installs: a high-risk plugin is left out unless kept with `space`. Changes are applied once the wizard has left the screen, so agent messages print below it.

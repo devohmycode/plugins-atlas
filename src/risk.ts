@@ -93,18 +93,27 @@ export function assessRisks(input: RiskInput): Risk[] {
   return risks.sort((a, b) => LEVEL_RANK[a.level] - LEVEL_RANK[b.level]);
 }
 
-/** The first `npx -y` or `uvx` package with no version, or undefined. */
+/** An exact npm or PEP 440 version: `1.2.3`, `1.2.3-beta.1`, `1.0rc1`. A dist-tag, `*` or a range is not one. */
+const EXACT_VERSION = /^v?\d+(?:\.\d+)*(?:(?:a|b|rc|\.post|\.dev)\d+)*(?:[-+][0-9A-Za-z.-]+)?$/;
+
+function isExact(version: string): boolean {
+  return EXACT_VERSION.test(version.replace(/["';),]+$/, ''));
+}
+
+/** The first `npx -y` or `uvx` package with no exact version, or undefined. */
 function unpinnedPackage(text: string): string | undefined {
   for (const match of text.matchAll(/(?:^|[\s;&|"'])npx\s+((?:-{1,2}[^\s]+\s+)*)([^\s-][^\s]*)/gi)) {
     const flags = match[1] ?? '';
     const pkg = match[2] ?? '';
     if (!/(?:^|\s)(?:-y|--yes)(?:\s|$)/.test(flags)) continue;
     // `@scope/name@1.2.3` or `name@1.2.3`: the version follows the last `@` after the first character.
-    if (pkg.lastIndexOf('@') <= 0) return `npx ${pkg}`;
+    const at = pkg.lastIndexOf('@');
+    if (at <= 0 || !isExact(pkg.slice(at + 1))) return `npx ${pkg}`;
   }
   for (const match of text.matchAll(/(?:^|[\s;&|"'])uvx\s+((?:-{1,2}[^\s]+\s+)*)([^\s-][^\s]*)/gi)) {
     const pkg = match[2] ?? '';
-    if (!/==|@/.test(pkg)) return `uvx ${pkg}`;
+    const version = /(?:==|@)([^=@]*)$/.exec(pkg)?.[1];
+    if (version === undefined || !isExact(version)) return `uvx ${pkg}`;
   }
   return undefined;
 }
