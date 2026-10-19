@@ -1,5 +1,8 @@
 import type { AgentId, Catalog, Plugin } from './types.js';
 
+export const SORT_ORDERS = ['official', 'name'] as const;
+export type SortOrder = (typeof SORT_ORDERS)[number];
+
 export interface SearchQuery {
   /** Words matched against name, description, keywords and id. All must match. */
   query?: string;
@@ -9,6 +12,8 @@ export interface SearchQuery {
   agent?: AgentId;
   /** When true, keep only official plugins. */
   official?: boolean;
+  /** `official` (default): official plugins seen in several origins first. `name`: by name only. */
+  sort?: SortOrder;
 }
 
 /** Filters a snapshot. Official plugins seen in several origins come first, then official ones, then `id`. */
@@ -27,7 +32,7 @@ export function searchPlugins(plugins: readonly Plugin[], query: SearchQuery = {
       const haystack = [plugin.name, plugin.description ?? '', ...plugin.keywords, plugin.id].join('\n').toLowerCase();
       return tokens.every((token) => haystack.includes(token));
     })
-    .sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id));
+    .sort((a, b) => (query.sort === 'name' ? a.name.localeCompare(b.name) : rank(a) - rank(b)) || a.id.localeCompare(b.id));
 }
 
 function rank(plugin: Plugin): number {

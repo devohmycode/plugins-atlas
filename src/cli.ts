@@ -5,6 +5,7 @@ import { Command, Option } from 'commander';
 import { ADAPTERS, type Adapter, type AgentContext } from './adapters/index.js';
 import { AGENTS, distinctAgents } from './agents.js';
 import { auditEnabled, auditPlugin } from './audit.js';
+import { applyWizard, browseLoop, readInstalled } from './browse.js';
 import { exportBundle, parseBundle, planImport } from './bundle.js';
 import { loadCatalog as loadCatalogFile } from './catalog.js';
 import { complete, completionScript } from './completion.js';
@@ -12,14 +13,17 @@ import { serveMcp } from './mcp.js';
 import { readConfig, type UserConfig } from './config.js';
 import { detectAgents } from './detect.js';
 import { IdError, parsePluginId } from './id.js';
-import { installedView } from './installed.js';
-import { componentLines } from './preview.js';
+import { installedView, type InstalledRow } from './installed.js';
+import { componentLines, readPreview } from './preview.js';
 import type { RepoOptions } from './repo.js';
 import { applyProposals, describe, propose, withComponents as withComponentsOf, type OperateDeps } from './operate.js';
 import { loadLatestCatalog } from './refresh.js';
-import { searchCatalog } from './search.js';
+import { searchCatalog, SORT_ORDERS, type SortOrder } from './search.js';
 import { AGENT_IDS, type AgentId, type Catalog, type Plugin, type Scope } from './types.js';
 import { outdatedRows, updatePlugin } from './update.js';
+import type { WizardResult } from './ui/App.js';
+import { m } from './ui/messages.js';
+import type { WizardProps } from './ui/run.js';
 import { VERSION } from './version.js';
 
 export interface CatalogFlags {
@@ -41,6 +45,10 @@ export interface CliDeps {
   repo?: RepoOptions;
   /** The machine: home, project folder, environment, file checks, command runner. */
   machine?: Omit<AgentContext, 'dryRun' | 'log'>;
+  /** Whether a person is at the keyboard. Defaults to stdin and stdout being terminals. */
+  interactive?: () => boolean;
+  /** The full-screen wizard, its mouse on or off. Injected in tests. */
+  runWizard?: (props: WizardProps, mouse: boolean) => Promise<WizardResult | null>;
 }
 
 class CliError extends Error {
@@ -50,6 +58,15 @@ class CliError extends Error {
 interface ScopeFlags {
   global?: boolean;
   project?: boolean;
+}
+
+/** What `browse` and an interactive `install` take. Commander stores `--no-audit` and `--no-mouse` as false. */
+interface WizardOpts extends ScopeFlags {
+  agent?: string[];
+  yes?: boolean;
+  dryRun?: boolean;
+  audit: boolean;
+  mouse?: boolean;
 }
 
 function scopeOf(flags: ScopeFlags): Scope {
@@ -120,6 +137,60 @@ export function createProgram(deps: CliDeps = {}): Command {
   };
   const operate: OperateDeps = { adapters, ...(deps.repo ? { repo: deps.repo } : {}), config: config(), warn: err };
   const withComponents = (plugin: Plugin) => withComponentsOf(plugin, operate, machine.env);
+  const interactive = deps.interactive ?? (() => process.stdin.isTTY === true && process.stdout.isTTY === true);
+  const runWizard = async (props: WizardProps, mouse: boolean) => {
+    if (deps.runWizard) return deps.runWizard(props, mouse);
+    // React reads this when it loads: without it, Ink renders with the slower development build.
+    process.env.NODE_ENV ??= 'production';
+    return (await import('./ui/run.js')).runWizard(props, mouse);
+  };
+  const color = !deps.stdout && process.stdout.isTTY === true && !('NO_COLOR' in process.env);
+  /**
+   * The wizard, then what it chose applied once Ink has left the screen, so that agent messages print below it.
+   * `installed` is filled by the wizard's own read of the agents, for the uninstalls and updates.
+   */
+  const wizardRun = async (cat: Catalog, props: Omit<WizardProps, 'defaults' | 'detectedAgents' | 'audit'>, opts: WizardOpts, notice = '') => {
+    const detected = detectAgents(machine);
+    const audit = auditEnabled(config(), opts.audit);
+    const quiet: string[] = [];
+    let installed: InstalledRow[] = [];
+    const readAgents = [...new Set([...detected, ...(props.preset.agents ?? [])])];
+    const result = await runWizard(
+      {
+        ...props,
+        defaults: { agents: detected, scope: 'user' },
+        detectedAgents: detected,
+        audit,
+        ...(notice ? { notice } : {}),
+        loadPreview: (plugin) => readPreview(plugin, operate.repo ?? { env: machine.env }),
+        ...(props.initialIds
+          ? {}
+          : {
+              loadInstalled: async (scopes: Scope[]) => {
+                // Nothing may print while Ink owns the screen.
+                const read = await readInstalled(cat, readAgents, scopes, { ...machine, log: (l) => quiet.push(l) }, adapters);
+                installed = read.rows;
+                return read.state;
+              },
+            }),
+      },
+      opts.mouse !== false,
+    );
+    for (const l of quiet) err(l);
+    return { result, apply: (r: WizardResult) => applyWizard(r, { catalog: cat, ctx: ctx(opts.dryRun), operate, adapters, installed, audit, err, color }) };
+  };
+  /** `-a`, with `*` for every agent; the wizard keeps those of the chosen scope. */
+  const wizardAgents = (flag: string[] | undefined) => (flag?.includes('*') ? [...AGENT_IDS] : parseAgents(flag));
+  const presetOf = (opts: WizardOpts) => {
+    if (opts.global && opts.project) throw new CliError('Choose -g or -p, not both');
+    const scope: Scope | undefined = opts.global ? 'user' : opts.project ? 'project' : undefined;
+    const agents = wizardAgents(opts.agent);
+    // `-y` answers what the flags left open: detected agents, user scope.
+    return {
+      ...(agents || opts.yes ? { agents: agents ?? detectAgents(machine) } : {}),
+      ...(scope || opts.yes ? { scope: scope ?? 'user' } : {}),
+    };
+  };
   const targetAgents = (flag: string[] | undefined): AgentId[] => parseAgents(flag) ?? detectAgents(machine);
   const withScope = (command: Command) =>
     command.addOption(new Option('-g, --global', 'user scope (default)')).addOption(new Option('-p, --project', 'project scope, in the current folder'));
@@ -138,16 +209,20 @@ export function createProgram(deps: CliDeps = {}): Command {
   program
     .command('list')
     .description('search the catalog')
-    .option('-q, --query <words>', 'words matched against name, description, keywords and id')
+    .option('-q, --search <text>', 'words matched against name, description, keywords and id')
+    .addOption(new Option('--query <text>').hideHelp())
     .option('-t, --theme <id>', 'theme id')
     .option('-a, --agent <id>', 'only plugins this agent can install')
     .option('--official', 'only official plugins')
+    .addOption(new Option('-s, --sort <order>', 'order of the list').choices(SORT_ORDERS))
     .option('-n, --limit <count>', 'at most this many rows', '50')
     .option('--json', 'machine-readable output')
-    .action(async (opts: { query?: string; theme?: string; agent?: string; official?: boolean; limit: string; json?: boolean }) => {
+    .action(async (opts: { search?: string; query?: string; theme?: string; agent?: string; official?: boolean; sort?: SortOrder; limit: string; json?: boolean }) => {
       const agent = opts.agent ? parseAgents([opts.agent])?.[0] : undefined;
+      const query = opts.search ?? opts.query;
       const found = searchCatalog(await catalog(), {
-        ...(opts.query ? { query: opts.query } : {}),
+        ...(query ? { query } : {}),
+        ...(opts.sort ? { sort: opts.sort } : {}),
         ...(opts.theme ? { theme: opts.theme } : {}),
         ...(agent ? { agent } : {}),
         ...(opts.official ? { official: true } : {}),
@@ -200,10 +275,21 @@ export function createProgram(deps: CliDeps = {}): Command {
     .option('-y, --yes', 'apply the plan')
     .option('--dry-run', 'print what would run or be written, change nothing')
     .option('--no-audit', 'let a high risk through for this run')
-    .action(async (ids: string[], opts: ScopeFlags & { agent?: string[]; yes?: boolean; dryRun?: boolean; audit: boolean }) => {
+    .option('--no-mouse', 'keyboard only in the wizard: normal screen, native text selection')
+    .action(async (ids: string[], opts: WizardOpts) => {
       if (opts.yes && !opts.agent) throw new CliError('install -y needs -a: name the agents to write');
       const cat = await catalog();
       const scope = scopeOf(opts);
+      if (!opts.yes && !opts.dryRun && interactive()) {
+        // A person at the keyboard answers what the flags left open and reviews, as in `browse`, without the tree.
+        const found = ids.map((id) => findPlugin(cat, id));
+        const missing = ids.filter((_, i) => !found[i]);
+        if (missing.length) throw new CliError(`Not in the catalog: ${missing.join(', ')}`);
+        const { result, apply } = await wizardRun(cat, { themes: [], plugins: found as Plugin[], preset: presetOf(opts), initialIds: ids }, opts);
+        if (result) await apply(result);
+        else out(m.run.noChange);
+        return;
+      }
       const agents = targetAgents(opts.agent);
       if (agents.length === 0) throw new CliError('No agent detected; name one with -a');
       const apply = opts.yes === true || opts.dryRun === true;
@@ -352,12 +438,51 @@ export function createProgram(deps: CliDeps = {}): Command {
       if (!opts.yes && !opts.dryRun) err('Nothing changed. Pass -y to apply.');
     });
 
-  withScope(program.command('browse'))
-    .description('the terminal tree: tick plugins, preview them, review before anything changes')
-    .option('--no-audit', 'let a high-risk plugin ticked by itself through, for this run')
-    .action(async (opts: ScopeFlags & { audit: boolean }) => {
-      const { browse } = await import('./ui/run.js');
-      await browse({ catalog: await catalog(), agents: detectAgents(machine), ctx: ctx(), operate, scope: scopeOf(opts), ...(opts.audit ? {} : { audit: false }) });
+  withScope(program.command('browse', { isDefault: true }))
+    .description('the terminal wizard (default): tick plugins, then scope, agents and a review before anything changes')
+    .option('-t, --theme <ids...>', 'only these themes')
+    .option('-q, --search <text>', 'start with this search')
+    .option('--official', 'only official plugins')
+    .addOption(new Option('-s, --sort <order>', 'order of the tree').choices(SORT_ORDERS))
+    .option('-a, --agent <ids...>', "agents to install into (* = every agent of the scope); asked otherwise")
+    .option('-y, --yes', 'ask nothing that the flags left open: detected agents, user scope')
+    .option('--dry-run', 'print what would run or be written, change nothing')
+    .option('--no-audit', 'install even when a high risk is found')
+    .option('--no-mouse', 'keyboard only: normal screen, native text selection')
+    .action(async (opts: WizardOpts & { theme?: string[]; search?: string; official?: boolean; sort?: SortOrder }) => {
+      if (!interactive()) throw new CliError('The tree needs a terminal. Run plugins-atlas --help for the other commands.');
+      const cat = await catalog();
+      for (const theme of opts.theme ?? []) if (!cat.themes.some((t) => t.id === theme)) throw new CliError(`Unknown theme ${theme}. Run plugins-atlas themes.`);
+      const themes = opts.theme;
+      const plugins = searchCatalog(cat, { ...(opts.official ? { official: true } : {}) }).filter((p) => !themes || p.themes.some((t) => themes.includes(t)));
+      if (plugins.length === 0) throw new CliError('No plugin matches these filters.');
+      const preset = presetOf(opts);
+      const treeMemory = {};
+      let apply: (r: WizardResult) => Promise<string> = async () => '';
+      const runs = await browseLoop(
+        async (notice) => {
+          const w = await wizardRun(
+            cat,
+            {
+              themes: cat.themes,
+              plugins,
+              allPlugins: cat.plugins,
+              preset,
+              treeMemory,
+              ...(opts.sort ? { sort: opts.sort } : {}),
+              ...(opts.search ? { search: opts.search } : {}),
+              ...(opts.official ? { official: true } : {}),
+            },
+            opts,
+            notice,
+          );
+          apply = w.apply;
+          return w.result;
+        },
+        (result) => apply(result),
+        { dryRun: opts.dryRun === true },
+      );
+      if (runs === 0) out(m.run.noChange);
     });
 
   program
@@ -426,10 +551,6 @@ export function createProgram(deps: CliDeps = {}): Command {
 
 export async function run(argv: string[], deps: CliDeps = {}): Promise<void> {
   const program = createProgram(deps);
-  if (argv.length <= 2) {
-    program.outputHelp();
-    return;
-  }
   try {
     await program.parseAsync(argv);
   } catch (e) {

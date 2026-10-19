@@ -14,13 +14,61 @@ node dist/cli.js --help
 
 The package binary is `plugins-atlas`.
 
+## Usage
+
+```bash
+plugins-atlas                                  # interactive: tree → scope → agents → review, then back to the tree
+plugins-atlas browse -t code-quality -q review # tree pre-filtered by theme and text
+plugins-atlas browse -a claude-code cursor -g  # options given as flags are not asked
+plugins-atlas install code-review@claude-plugins-official   # in a terminal: scope, agents and review, no tree
+plugins-atlas install code-review@claude-plugins-official -a claude-code -y   # no question asked
+```
+
+### Keys of the tree
+
+| Key | Action |
+|---|---|
+| `↑` `↓` `PgUp` `PgDn` | move |
+| `→` `←` | open or close a theme |
+| `space` | tick a plugin, or a whole theme; unticking an installed plugin uninstalls it |
+| `/` | search; `esc` clears it |
+| `a` | open or close every theme |
+| `s` | sort: official first, or by name |
+| `o` | official plugins only |
+| `p` | read the components, the risks and the README |
+| `g` | open the repository |
+| `u` / `U` | mark an outdated plugin, or all of them, for update |
+| `enter` | next: scope, agents, review |
+| `q` | quit |
+
+Installed plugins come first, under *Already installed*, ticked. On the review, a plugin that fails the audit is left out; `space` keeps it anyway. A plugin whose components are unknown is read and audited when it is installed.
+
+The mouse works too: wheel to scroll, click to tick, click the hints. The wizard then runs on the alternate screen; `--no-mouse` keeps the normal screen.
+
+### Options of the tree
+
+| Flag | Meaning |
+|---|---|
+| `-t, --theme <ids...>` | only these themes |
+| `-q, --search <text>` | start with this search |
+| `--official` | only official plugins |
+| `-s, --sort <order>` | `official` (default) or `name`; also for `list` |
+| `-a, --agent <ids...>` | agents to install into; `*` is every agent of the scope |
+| `-g, --global` / `-p, --project` | user profile, or this directory |
+| `-y, --yes` | ask nothing: detected agents, user scope |
+| `--dry-run` | print each command and file, change nothing |
+| `--no-audit` | install even when a high risk is found |
+| `--no-mouse` | keyboard only |
+
+What the flags leave open is asked, pre-filled with the user scope and the detected agents. `install <ids>` takes the same `-a`, `-g`, `-p`, `--no-audit` and `--no-mouse`.
+
 ## Commands
 
-`themes`, `list` (`-q`, `-t`, `-a`, `--official`, `-n`, `--json`), `agents`, `show` (components, risks on stderr, `--json`), `install` (`-a`, `-g` or `-p`, `-y`, `--dry-run`, `--no-audit`), `uninstall`, `installed`, `outdated`, `update`, `export`, `import`, `completion`, `browse`, `ui`, and `mcp`.
+`themes`, `list` (`-q, --search`, `-t`, `-a`, `--official`, `-s`, `-n`, `--json`), `agents`, `show` (components, risks on stderr, `--json`), `install` (`-a`, `-g` or `-p`, `-y`, `--dry-run`, `--no-audit`), `uninstall`, `installed`, `outdated`, `update`, `export`, `import`, `completion`, `browse`, `ui`, and `mcp`.
 
 Without `-y`, `install`, `update` and `import` print the plan and change nothing. `install -y` without `-a` fails. `--dry-run` prints each command or file and changes nothing. `--offline` uses the cached or bundled snapshot and does not contact the network. `--refresh` checks for a newer snapshot now; otherwise a check waits 12 hours.
 
-`browse` is the terminal tree and `ui` is the local page. Both show a review before anything changes. `mcp` speaks MCP on stdio and runs no plugin component.
+`browse`, the default command, is the terminal wizard above. In a terminal, `install <ids>` without `-y` opens it on those plugins, the tree skipped. `ui` is the local page. Both show a review before anything changes. `mcp` speaks MCP on stdio and runs no plugin component.
 
 ## Agents
 

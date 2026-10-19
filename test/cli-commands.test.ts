@@ -1,6 +1,8 @@
 import { afterEach, expect, it } from 'vitest';
 import type { Adapter } from '../src/adapters/index.js';
 import { createProgram, run, type CliDeps } from '../src/cli.js';
+import type { WizardResult } from '../src/ui/App.js';
+import type { WizardProps } from '../src/ui/run.js';
 import { THEMES } from '../src/taxonomy.js';
 import { AGENT_IDS, type AgentId, type Catalog, type Plugin } from '../src/types.js';
 
@@ -171,4 +173,86 @@ it('prints a completion script and completes ids offline', async () => {
   h.out.length = 0;
   await h.cli('__complete', '--', 'install', '-a', 'cod');
   expect(h.out).toEqual(['codex-cli\ncodex-desktop']);
+});
+
+/** Records what each wizard was shown, and answers with the next result. */
+function wizards(...answers: ((props: WizardProps) => Promise<WizardResult | null>)[]) {
+  const shown: { props: WizardProps; mouse: boolean }[] = [];
+  const runWizard = async (props: WizardProps, mouse: boolean) => {
+    shown.push({ props, mouse });
+    return (answers.shift() ?? (async () => null))(props);
+  };
+  return { shown, runWizard };
+}
+
+it('opens the wizard with no command, and passes its parameters to it', async () => {
+  const w = wizards();
+  const h = harness({ interactive: () => true, runWizard: w.runWizard });
+  await h.cli();
+  expect(w.shown[0]?.props).toMatchObject({ preset: {}, defaults: { agents: [], scope: 'user' }, audit: true });
+  expect(w.shown[0]?.mouse).toBe(true);
+  expect(h.out).toEqual(['Nothing changed.']);
+  await h.cli('-q', 'review', '-t', 'code-quality', '--official', '-s', 'name', '-a', 'cursor', '-p', '--no-audit', '--no-mouse');
+  const { props, mouse } = w.shown[1]!;
+  expect(props).toMatchObject({ search: 'review', official: true, sort: 'name', preset: { agents: ['cursor'], scope: 'project' }, audit: false });
+  expect(props.plugins.map((p) => p.id)).toEqual(['review@m', 'risky@m']);
+  expect(props.allPlugins).toHaveLength(3);
+  expect(mouse).toBe(false);
+  await h.cli('browse', '-y');
+  expect(w.shown[2]?.props.preset).toEqual({ agents: [], scope: 'user' });
+  await h.cli('browse', '-a', '*');
+  expect(w.shown[3]?.props.preset).toEqual({ agents: [...AGENT_IDS] });
+});
+
+it('applies what the wizard chose once it left, then shows it again with the summary', async () => {
+  const w = wizards(
+    async (props) => {
+      // The tree reads what the agents have installed before it shows.
+      const state = await props.loadInstalled!(['project', 'user']);
+      expect([...state.installed.keys()]).toEqual(['review@m']);
+      expect([...state.updates]).toEqual(['review@m']);
+      return { ids: ['cursor-only@m'], remove: [{ id: 'review@m', scopes: ['user'] }], update: [], options: { agents: ['cursor'], scope: 'user' } };
+    },
+    async () => null,
+  );
+  const h = harness({ interactive: () => true, runWizard: w.runWizard });
+  await h.cli('-a', 'claude-code', 'cursor');
+  expect(h.calls).toEqual(['uninstall claude-code user review@m', 'uninstall cursor user review@m', 'install cursor user cursor-only@m add-marketplace+install']);
+  expect(h.out).toEqual(['1/1 installed  ·  1/1 uninstalled']);
+  expect(w.shown[1]?.props.notice).toBe('1/1 installed  ·  1/1 uninstalled');
+});
+
+it('stops after one dry run, and refuses the tree without a terminal or with an unknown theme', async () => {
+  const w = wizards(async () => ({ ids: ['review@m'], remove: [], update: [], options: { agents: ['claude-code'], scope: 'user' } }));
+  const dry: (boolean | undefined)[] = [];
+  const base = harness().deps.adapters!;
+  const adapters = { ...base, 'claude-code': { ...base['claude-code'], install: async (_plan, _p, c) => void dry.push(c.dryRun) } as Adapter };
+  const h = harness({ interactive: () => true, runWizard: w.runWizard, adapters });
+  await h.cli('--dry-run');
+  expect(w.shown).toHaveLength(1);
+  expect(dry).toEqual([true]);
+  await expect(harness({ interactive: () => false }).cli()).rejects.toThrow('needs a terminal');
+  await expect(harness({ interactive: () => true, runWizard: async () => null }).cli('browse', '-t', 'nope')).rejects.toThrow('Unknown theme nope');
+});
+
+it('opens the wizard on named plugins when a person is at the keyboard, the tree skipped', async () => {
+  const w = wizards(async () => null);
+  const h = harness({ interactive: () => true, runWizard: w.runWizard });
+  await h.cli('install', 'review@m', '-a', 'claude-code');
+  expect(w.shown[0]?.props).toMatchObject({ initialIds: ['review@m'], preset: { agents: ['claude-code'] } });
+  expect(w.shown[0]?.props.loadInstalled).toBeUndefined();
+  expect(h.out).toEqual(['Nothing changed.']);
+  expect(h.calls).toEqual([]);
+  await h.cli('install', 'review@m', '-a', 'claude-code', '-y');
+  expect(h.calls).toEqual(['install claude-code user review@m add-marketplace+install']);
+  expect(w.shown).toHaveLength(1);
+});
+
+it('searches with -q, or --query kept as a hidden alias, and sorts by name', async () => {
+  const h = harness();
+  await h.cli('list', '--query', 'review');
+  expect(h.out).toEqual(['review@m  [claude-code,copilot-cli]  The review plugin']);
+  h.out.length = 0;
+  await h.cli('list', '-s', 'name');
+  expect(h.out.map((l) => l.split(' ')[0])).toEqual(['cursor-only@m', 'review@m', 'risky@m']);
 });

@@ -1,0 +1,143 @@
+/*
+ * CLI logo: figlet "ANSI Shadow" art with a diagonal sky blue → lavender → pink
+ * gradient. Colors are interpolated in OKLab (perceptually even
+ * steps) and the angle accounts for terminal cells being about twice as tall
+ * as they are wide, so the gradient runs at a true 45°. Shadow glyphs
+ * (╗ ║ ═ …) are drawn slightly darker to give the letters some depth.
+ */
+
+import { LOGO_STOPS } from './palette.js';
+
+const GLYPHS: Record<string, string[]> = {
+  P: ["██████╗ ", "██╔══██╗", "██████╔╝", "██╔═══╝ ", "██║     ", "╚═╝     "],
+  L: ["██╗     ", "██║     ", "██║     ", "██║     ", "███████╗", "╚══════╝"],
+  U: ["██╗   ██╗", "██║   ██║", "██║   ██║", "██║   ██║", "╚██████╔╝", " ╚═════╝ "],
+  G: [" ██████╗ ", "██╔════╝ ", "██║  ███╗", "██║   ██║", "╚██████╔╝", " ╚═════╝ "],
+  I: ["██╗", "██║", "██║", "██║", "██║", "╚═╝"],
+  N: ["███╗   ██╗", "████╗  ██║", "██╔██╗ ██║", "██║╚██╗██║", "██║ ╚████║", "╚═╝  ╚═══╝"],
+  S: ["███████╗", "██╔════╝", "███████╗", "╚════██║", "███████║", "╚══════╝"],
+};
+
+const PLUGINS: string[] = GLYPHS.P!.map((_, i) => [..."PLUGINS"].map((c) => GLYPHS[c]![i]).join(""));
+
+const ATLAS: string[] = [
+  " █████╗ ████████╗██╗      █████╗ ███████╗",
+  "██╔══██╗╚══██╔══╝██║     ██╔══██╗██╔════╝",
+  "███████║   ██║   ██║     ███████║███████╗",
+  "██╔══██║   ██║   ██║     ██╔══██║╚════██║",
+  "██║  ██║   ██║   ███████╗██║  ██║███████║",
+  "╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚══════╝"
+];
+
+const WIDE: string[] = PLUGINS.map((line, i) => `${line}   ${ATLAS[i]}`);
+const STACKED: string[] = [...PLUGINS, "", ...ATLAS];
+const PLAIN = "PLUGINS ATLAS";
+
+/** Gradient stops, sRGB. */
+export const FROM: RGB = LOGO_STOPS[0]!;
+export const MIDDLE: RGB = LOGO_STOPS[1]!;
+export const TO: RGB = LOGO_STOPS[2]!;
+
+/** Lightness factor of shadow glyphs (1 = same as the letters). */
+const SHADOW_DIM = 0.72;
+
+type RGB = [number, number, number];
+type Lab = [number, number, number];
+
+const toLinear = (c: number) => ((c /= 255) <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+const toSrgb = (c: number) => Math.round(255 * Math.min(1, Math.max(0, c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055)));
+
+function rgbToOklab([r, g, b]: RGB): Lab {
+  const [lr, lg, lb] = [toLinear(r), toLinear(g), toLinear(b)];
+  const l = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb);
+  const m = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb);
+  const s = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb);
+  return [
+    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+  ];
+}
+
+function oklabToRgb([L, a, b]: Lab): RGB {
+  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+  const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
+  return [
+    toSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+    toSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+    toSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s),
+  ];
+}
+
+const STOPS = LOGO_STOPS.map(rgbToOklab);
+
+/** Color at position t ∈ [0, 1]; dim < 1 darkens (OKLab lightness) for shadow glyphs. */
+export function gradientAt(t: number, dim = 1): RGB {
+  const k = Math.min(1, Math.max(0, t));
+  const segment = Math.min(STOPS.length - 2, Math.floor(k * (STOPS.length - 1)));
+  const a = STOPS[segment]!, b = STOPS[segment + 1]!;
+  const mix = k * (STOPS.length - 1) - segment;
+  return oklabToRgb([(a[0] + (b[0] - a[0]) * mix) * dim, a[1] + (b[1] - a[1]) * mix, a[2] + (b[2] - a[2]) * mix]);
+}
+
+type Depth = "truecolor" | "256" | "none";
+
+/** Terminal color depth, from the usual environment hints. */
+export function colorDepth(stream: NodeJS.WriteStream = process.stdout): Depth {
+  const env = process.env;
+  if ("NO_COLOR" in env || env.TERM === "dumb" || !stream.isTTY) return "none";
+  if ("FORCE_COLOR" in env && env.FORCE_COLOR === "0") return "none";
+  if (/^(truecolor|24bit)$/i.test(env.COLORTERM ?? "") || env.WT_SESSION || env.TERM_PROGRAM === "vscode" ||
+    env.TERM_PROGRAM === "iTerm.app" || env.TERM_PROGRAM === "WezTerm" || /-direct$|kitty|alacritty/.test(env.TERM ?? "") ||
+    process.platform === "win32") return "truecolor";
+  return "256";
+}
+
+/** Nearest xterm-256 color (6×6×6 cube or grey ramp). */
+function to256([r, g, b]: RGB): number {
+  const cube = (c: number) => (c < 48 ? 0 : c < 115 ? 1 : Math.floor((c - 35) / 40));
+  const levels = [0, 95, 135, 175, 215, 255];
+  const [cr, cg, cb] = [cube(r), cube(g), cube(b)];
+  const cubeDist = (levels[cr]! - r) ** 2 + (levels[cg]! - g) ** 2 + (levels[cb]! - b) ** 2;
+  const grey = Math.min(23, Math.max(0, Math.round(((r + g + b) / 3 - 8) / 10)));
+  const gv = 8 + grey * 10;
+  const greyDist = (gv - r) ** 2 + (gv - g) ** 2 + (gv - b) ** 2;
+  return greyDist < cubeDist ? 232 + grey : 16 + 36 * cr + 6 * cg + cb;
+}
+
+const SHADOW = /[╔╗╚╝═║]/;
+
+/** Paints an art block with the diagonal gradient. */
+export function paint(lines: string[], depth: Depth): string {
+  if (depth === "none") return lines.join("\n");
+  const h = lines.length;
+  const w = Math.max(...lines.map((l) => l.length));
+  // Cells are ~2× taller than wide: weighting rows by 2 keeps the angle at 45°.
+  const span = Math.max(1, w - 1 + 2 * (h - 1));
+  return lines.map((line, y) => {
+    let out = "";
+    let last = "";
+    for (let x = 0; x < line.length; x++) {
+      const ch = line[x]!;
+      if (ch === " ") {
+        out += ch;
+        continue;
+      }
+      const rgb = gradientAt((x + 2 * y) / span, SHADOW.test(ch) ? SHADOW_DIM : 1);
+      const code = depth === "truecolor" ? `38;2;${rgb[0]};${rgb[1]};${rgb[2]}` : `38;5;${to256(rgb)}`;
+      if (code !== last) out += `\x1b[${code}m`;
+      last = code;
+      out += ch;
+    }
+    return out + "\x1b[0m";
+  }).join("\n");
+}
+
+/** Logo that fits the terminal width: wide, stacked, then plain text. */
+export function logo(columns = process.stdout.columns ?? 80, depth: Depth = colorDepth()): string {
+  const fits = (ls: string[]) => Math.max(...ls.map((l) => l.length)) <= columns;
+  if (fits(WIDE)) return paint(WIDE, depth);
+  if (fits(STACKED)) return paint(STACKED, depth);
+  return paint([PLAIN], depth);
+}
