@@ -1,4 +1,10 @@
-# plugins-atlas
+<h1 align="center"><img src="docs/logo.svg" alt="PLUGINS ATLAS" width="900"></h1>
+
+<p align="center">Browse every public agent plugin by theme, then install it into Claude Code, Claude Desktop, Copilot CLI, Factory Droid, Codex and Cursor.</p>
+
+![Terminal session: searching for aws, ticking two plugins, previewing one, choosing scope and agents, then the review where the audit leaves a high-risk plugin out](docs/demo.gif)
+
+*A session: search, tick, preview with `p`, choose scope and agents, then the review and its audit. Recorded with `npm run gif:frames && npm run gif`.*
 
 Browse a catalog of public agent plugins and install them into the agents that can read them. A plugin is a declarative bundle (skills, commands, subagents, hooks, MCP servers) published in a marketplace. This is the plugins counterpart of [skills-atlas](https://github.com/devohmycode/skills-atlas) and [mcp-atlas](https://github.com/devohmycode/mcp-atlas).
 

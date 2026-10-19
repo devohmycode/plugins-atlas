@@ -19,7 +19,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "crawl": "tsx src/crawl.ts",
-    "demo": "tsx scripts/demo.ts"
+    "demo": "tsx scripts/demo.ts",
+    "logo": "tsx scripts/logo-svg.ts",
+    "gif:frames": "tsx scripts/gif/frames.tsx",
+    "gif": "tsx scripts/gif/record.ts"
   },
   "license": "MIT",
   "dependencies": {
