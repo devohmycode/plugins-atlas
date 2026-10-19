@@ -1,8 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 — 2026-10-19
 
 - **A dist-tag, a wildcard or a range is not a version.** `npx -y pkg@latest`, `uvx pkg@latest`, `@next`, `@*`, `@^1`, `@1.x` or `==1.*` now count as unpinned (high), like a bare package name: they used to pass because of the `@` or `==`. The official plugin aws-serverless runs `uvx awslabs.aws-serverless-mcp-server@latest`. An exact version (`@1.2.3`, `==0.6.2`) still passes.
+- **README:** the PLUGINS ATLAS logo in the skills-atlas gradient and a GIF of the terminal wizard, with `npm run logo` and `npm run gif:frames` / `npm run gif` to redo them.
+
+Validation: 191 tests and TypeScript checks.
 
 ## 0.2.0 — 2026-10-19
 
